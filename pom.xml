@@ -8,6 +8,7 @@
         <version>2.2.13.RELEASE</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
+    <packaging>pom</packaging>
 
     <groupId>com.zzyy</groupId>
     <artifactId>cloud-ali-parent</artifactId>
@@ -17,6 +18,13 @@
     <properties>
         <java.version>1.8</java.version>
     </properties>
+
+    <modules>
+        <module>order-service</module>
+        <module>outh-server</module>
+        <module>point-server</module>
+        <module>stock-server</module>
+    </modules>
 
 
     <dependencies>

@@ -8,6 +8,9 @@
 		<version>0.0.1-SNAPSHOT</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
+	<packaging>jar</packaging>
+
+
 	<groupId>com.zzyy</groupId>
 	<artifactId>stock-server</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
