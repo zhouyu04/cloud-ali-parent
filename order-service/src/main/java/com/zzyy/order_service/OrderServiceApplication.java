@@ -1,5 +1,6 @@
 package com.zzyy.order_service;
 
+import com.zzyy.order_service.feign.PointFeignService;
 import com.zzyy.order_service.feign.StockFeignService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
@@ -35,6 +36,9 @@ public class OrderServiceApplication {
         StockFeignService stockFeignService;
 
         @Autowired
+        PointFeignService pointFeignService;
+
+        @Autowired
         RestTemplate restTemplate;
 
         @GetMapping(value = "/echo/{string}")
@@ -54,7 +58,8 @@ public class OrderServiceApplication {
             String s = stockFeignService.addOrder(num);
             System.out.println("调用库存返回:" + s);
 
-            String s1 = restTemplate.postForObject("http://127.0.0.1:9003/point?point=" + num, num, String.class);
+            String s1 = pointFeignService.addOrder(num);
+//            String s1 = restTemplate.postForObject("http://127.0.0.1:9003/point?point=" + num, num, String.class);
             System.out.println("调用积分返回：" + s1);
 
             return "success";

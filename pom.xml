@@ -24,6 +24,7 @@
         <module>outh-server</module>
         <module>point-server</module>
         <module>stock-server</module>
+        <module>gateway-server</module>
     </modules>
 
 
