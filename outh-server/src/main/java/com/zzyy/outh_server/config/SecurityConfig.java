@@ -2,88 +2,81 @@ package com.zzyy.outh_server.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.Collections;
-
+/**
+ * @author zhouy262
+ */
 @Configuration
 @EnableWebSecurity
+@Order(-1)
 public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
-
+    /***
+     * 忽略安全拦截的URL
+     * 
+     * @param web
+     * @throws Exception
+     */
     @Override
-    @Bean
-    public UserDetailsService userDetailsService() {
-        return new UserDetailServiceImpl();
+    public void configure(WebSecurity web) throws Exception {
+        web.ignoring().antMatchers("/user/login", "/oauth/login", "/user/logout", "/oauth/login", "/css/**", "/data/**",
+            "/fonts/**", "/img/**", "/js/**");
     }
 
+    /***
+     * 创建授权管理认证对象
+     * 
+     * @return
+     * @throws Exception
+     */
+    @Bean
+    @Override
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        AuthenticationManager manager = super.authenticationManagerBean();
+        return manager;
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        super.configure(auth);
+    }
+
+    /***
+     * 采用BCryptPasswordEncoder对密码进行编码
+     * 
+     * @return
+     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    @Override
-    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-        // @formatter: off
-//        auth.inMemoryAuthentication()
-//                .withUser("zzyy")
-//                .password(passwordEncoder().encode("123456"))
-//                .authorities(Collections.emptyList());
-        // @formatter: on
-
-        auth.userDetailsService(userDetailsService())
-                .passwordEncoder(passwordEncoder());
-    }
-
-    /**
-     * http安全配置
+    /****
      *
-     * @param http http安全对象
-     * @throws Exception http安全异常信息
+     * @param http
+     * @throws Exception
      */
     @Override
-    protected void configure(HttpSecurity http) throws Exception {
-        http.authorizeRequests()
-                .anyRequest().authenticated()
-                .and().httpBasic()
-                .and().cors()
-                .and().csrf().disable();
-    }
+    public void configure(HttpSecurity http) throws Exception {
+        http.csrf().disable()
+                .httpBasic()        //启用Http基本身份验证
+                .and()
+                .formLogin()       //启用表单身份验证
+                .loginPage("/oauth/login")
+                .loginProcessingUrl("/user/login")
+                .and()
+                .authorizeRequests()    //限制基于Request请求访问
+                .anyRequest()
+                .authenticated();       //其他请求都需要经过验证
 
-
-    /**
-     * 认证管理
-     *
-     * @return 认证管理对象
-     * @throws Exception 认证异常信息
-     */
-    @Override
-    @Bean
-    public AuthenticationManager authenticationManagerBean() throws Exception {
-        return super.authenticationManagerBean();
-    }
-
-
-    @Override
-    public void configure(WebSecurity web) throws Exception {
-        web.ignoring().antMatchers(
-                "/error",
-                "/static/**",
-                "/v2/api-docs/**",
-                "/swagger-resources/**",
-                "/webjars/**",
-                "/favicon.ico"
-        );
     }
 }
-
-
-

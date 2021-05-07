@@ -10,6 +10,7 @@ import java.util.Collection;
 public class UserJwt extends User {
     private String id;    //用户ID
     private String name;  //用户名字
+    private String role;
 
     private String comny;//设置公司
 
@@ -31,5 +32,21 @@ public class UserJwt extends User {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
+    }
+
+    public String getComny() {
+        return comny;
+    }
+
+    public void setComny(String comny) {
+        this.comny = comny;
     }
 }

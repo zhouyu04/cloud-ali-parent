@@ -1,101 +1,185 @@
 package com.zzyy.outh_server.config;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.security.KeyPair;
+import java.util.stream.Collectors;
+
+import javax.annotation.Resource;
+import javax.sql.DataSource;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.bootstrap.encrypt.KeyProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.jwt.crypto.sign.RsaVerifier;
 import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer;
-import org.springframework.security.oauth2.provider.token.DefaultTokenServices;
-import org.springframework.security.oauth2.provider.token.store.redis.RedisTokenStore;
+import org.springframework.security.oauth2.provider.ClientDetailsService;
+import org.springframework.security.oauth2.provider.client.JdbcClientDetailsService;
+import org.springframework.security.oauth2.provider.token.DefaultAccessTokenConverter;
+import org.springframework.security.oauth2.provider.token.TokenStore;
+import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
+import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
+import org.springframework.security.oauth2.provider.token.store.KeyStoreKeyFactory;
 
-//授权服务器配置
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * @author zhouy262 授权服务器配置开启授权服务
+ */
+@Slf4j
 @Configuration
-@EnableAuthorizationServer //开启授权服务
+@EnableAuthorizationServer
 public class AuthorizationConfig extends AuthorizationServerConfigurerAdapter {
 
+    @Autowired
+    private DataSource dataSource;
+
+    /**
+     * jwt令牌转换器
+     */
+    @Autowired
+    JwtAccessTokenConverter jwtAccessTokenConverter;
 
     @Autowired
     private UserDetailServiceImpl userDetailService;
-
-    // 认证管理器
+    /**
+     * 授权认证管理器
+     */
     @Autowired
-    private AuthenticationManager authenticationManager;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private RedisConnectionFactory redisConnectionFactory;
-
+    AuthenticationManager authenticationManager;
 
     /**
-     * access_token存储器
-     * 这里存储在数据库，大家可以结合自己的业务场景考虑将access_token存入数据库还是redis
+     * 令牌持久化存储接口
      */
-    @Bean
-    public RedisTokenStore tokenStore() {
-        RedisTokenStore tokenStore = new RedisTokenStore(redisConnectionFactory);
-        tokenStore.setPrefix("user-token:");
-        return tokenStore;
-    }
+    @Autowired
+    TokenStore tokenStore;
 
+    @Autowired
+    private CustomUserAuthenticationConverter customUserAuthenticationConverter;
 
-    @Override
-    public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
-        //允许表单提交
-        security.allowFormAuthenticationForClients()
-                .checkTokenAccess("isAuthenticated()");
-    }
+    @Autowired
+    PasswordEncoder passwordEncoder;
 
     @Override
     public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
         // @formatter: off
-        clients.inMemory()
-                .withClient("client-a") //client端唯一标识
-                .secret(passwordEncoder.encode("client-a-secret")) //客户端的密码，这里的密码应该是加密后的
-                .authorizedGrantTypes("authorization_code","password") //授权模式标识
-                .scopes("read_user_info") //作用域
-                .resourceIds("resource1") //资源id
-                .redirectUris("http://localhost"); //回调地址
+        // client端唯一标识
+        clients.inMemory().withClient("client-a")
+            // 客户端的密码，这里的密码应该是加密后的
+            .secret(passwordEncoder.encode("client-a-secret")).accessTokenValiditySeconds(3600)
+            .refreshTokenValiditySeconds(3600)
+            // 授权模式标识
+            .authorizedGrantTypes("authorization_code", "password")
+            // 作用域
+            .scopes("app")
+            // 资源id // 回调地址
+            .resourceIds("resource1").redirectUris("http://localhost");
         // @formatter: on
-    }
-
-
-    //  生成token的处理
-    @Primary
-    @Bean
-    public DefaultTokenServices defaultTokenServices() {
-        DefaultTokenServices tokenServices = new DefaultTokenServices();
-        tokenServices.setTokenStore(tokenStore());
-        // 是否支持 refreshToken
-        tokenServices.setSupportRefreshToken(true);
-        // 是否复用 refreshToken
-        tokenServices.setReuseRefreshToken(true);
-        // tokenServices.setTokenEnhancer(tokenEnhancer());
-        // token有效期自定义设置，默认12小时
-        tokenServices.setAccessTokenValiditySeconds(60 * 60 * 12);
-        //默认30天，这里修改
-        tokenServices.setRefreshTokenValiditySeconds(60 * 60 * 24 * 7);
-        return tokenServices;
     }
 
     @Override
     public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
 
-        endpoints
-                //.tokenEnhancer(tokenEnhancer())
-                .tokenStore(tokenStore())
-                .userDetailsService(userDetailService)
-                .authenticationManager(authenticationManager)
-                .tokenServices(defaultTokenServices());
+        endpoints.accessTokenConverter(jwtAccessTokenConverter).tokenStore(tokenStore)
+            .userDetailsService(userDetailService).authenticationManager(authenticationManager);
     }
 
+    /***
+     * 授权服务器的安全配置
+     * 
+     * @param oauthServer
+     * @throws Exception
+     */
+    @Override
+    public void configure(AuthorizationServerSecurityConfigurer oauthServer) throws Exception {
+        oauthServer.allowFormAuthenticationForClients().passwordEncoder(new BCryptPasswordEncoder())
+            .tokenKeyAccess("permitAll()").checkTokenAccess("isAuthenticated()");
+    }
+
+    /**
+     * 读取密钥的配置
+     * 
+     * @return
+     */
+    @Bean("keyProp")
+    public KeyProperties keyProperties() {
+        return new KeyProperties();
+    }
+
+    @Resource(name = "keyProp")
+    private KeyProperties keyProperties;
+
+    /**
+     * 客户端配置
+     * 
+     * @return
+     */
+    @Bean
+    public ClientDetailsService clientDetails() {
+        return new JdbcClientDetailsService(dataSource);
+    }
+
+    @Bean
+    @Autowired
+    public TokenStore tokenStore(JwtAccessTokenConverter jwtAccessTokenConverter) {
+        return new JwtTokenStore(jwtAccessTokenConverter);
+    }
+
+    /****
+     * JWT令牌转换器
+     * 
+     * @param customUserAuthenticationConverter
+     * @return
+     */
+    @Bean
+    public JwtAccessTokenConverter
+        jwtAccessTokenConverter(CustomUserAuthenticationConverter customUserAuthenticationConverter) {
+        JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
+        // 证书路径 changgou.jks
+        KeyPair keyPair = new KeyStoreKeyFactory(keyProperties.getKeyStore().getLocation(),
+            // 证书秘钥 changgouapp
+            keyProperties.getKeyStore().getSecret().toCharArray())
+                // 证书别名 changgou
+                .getKeyPair(keyProperties.getKeyStore().getAlias(),
+                    // 证书密码 changgou
+                    keyProperties.getKeyStore().getPassword().toCharArray());
+        converter.setKeyPair(keyPair);
+        // 不设置这个会出现 Cannot convert access token to JSON
+        String publicKey = getPubKey();
+
+        log.info("publicKey:" + publicKey);
+
+        converter.setVerifier(new RsaVerifier(publicKey));
+        // 配置自定义的CustomUserAuthenticationConverter
+        DefaultAccessTokenConverter accessTokenConverter =
+            (DefaultAccessTokenConverter)converter.getAccessTokenConverter();
+        accessTokenConverter.setUserTokenConverter(customUserAuthenticationConverter);
+        return converter;
+    }
+
+    /**
+     * 获取非对称加密公钥 Key
+     *
+     * @return 公钥 Key
+     */
+    private String getPubKey() {
+        ClassPathResource resource = new ClassPathResource("public.key");
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(resource.getInputStream()))) {
+            return br.lines().collect(Collectors.joining("\n"));
+        } catch (IOException ioe) {
+            ioe.printStackTrace();
+            return "";
+        }
+    }
 
 }

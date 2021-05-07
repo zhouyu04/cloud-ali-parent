@@ -1,6 +1,7 @@
 package com.zzyy.outh_server.config;
 
 import com.zzyy.outh_server.entity.UserInfo;
+import com.zzyy.outh_server.entity.UserJwt;
 import com.zzyy.outh_server.mapper.UserMapper;
 import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,21 +27,18 @@ public class UserDetailServiceImpl implements UserDetailsService {
     PasswordEncoder passwordEncoder;
 
     @Override
-    public UserDetails loadUserByUsername(String userName) throws UsernameNotFoundException {
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
         //获取本地用户
-        UserInfo user = userMapper.selectByUserName(userName);
+        UserInfo user = userMapper.selectByUserName(username);
         if (user != null) {
 
             String role = StringUtils.isBlank(user.getRole()) ? "admin" : user.getRole();
 
             //返回oauth2的用户
-            return new org.springframework.security.core.userdetails.User(
-                    user.getUsername(),
-                    passwordEncoder.encode(user.getPassword()),
-                    AuthorityUtils.createAuthorityList(role));
+            return new UserJwt(user.getUsername(), passwordEncoder.encode(user.getPassword()), AuthorityUtils.createAuthorityList(role));
         } else {
-            throw new UsernameNotFoundException("用户[" + userName + "]不存在");
+            throw new UsernameNotFoundException("用户[" + username + "]不存在");
         }
     }
 }
